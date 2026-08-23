@@ -1,9 +1,12 @@
 # HoYo Dashboard
 
-A live resource-tracking dashboard for Genshin Impact, Honkai: Star Rail, and
-Zenless Zone Zero, built on the (undocumented) HoYoLAB Battle Chronicle API.
-Server-side Next.js route handlers sign and fire the HoYoLAB requests, then
-normalize the results into the cards defined in [`requirement.md`](./requirement.md).
+A live resource-tracking dashboard for Genshin Impact, Honkai: Star Rail,
+Zenless Zone Zero, and Wuthering Waves. The HoYoverse games run on the
+(undocumented) HoYoLAB Battle Chronicle API; Wuthering Waves runs on Kuro
+Games' equally undocumented game-account API. Server-side Next.js route
+handlers sign and fire the requests, then normalize the results into the
+cards defined in [`requirement.md`](./requirement.md) (Wuthering Waves came
+later, by request — see "Wuthering Waves" below for its own notes).
 
 ## Setup
 
@@ -13,7 +16,16 @@ normalize the results into the cards defined in [`requirement.md`](./requirement
      / `ltoken_v2`). Log into hoyolab.com in a browser, open devtools →
      Application → Cookies, and copy the values. These are long-lived — treat
      them like a password, never commit `.env.local`.
-   - Each game's role UID and server region.
+   - Each HoYoverse game's role UID and server region.
+   - `WUWA_EMAIL` / `WUWA_PASSWORD` — your Wuthering Waves account login
+     (the game client login, not KuroBBS's website — no Chinese phone number
+     needed). Treat like a password.
+   - `WUWA_DEVICE_ID` — generate **once** with
+     `node -e "console.log(require('crypto').randomUUID().toUpperCase())"`
+     and never change it afterward. This is a stand-in for a real device's
+     hardware ID; keeping it fixed is what makes repeated logins look like
+     the same device reconnecting instead of a new one each time — see
+     "Wuthering Waves" below for why that matters.
 3. `npm run dev` and open http://localhost:3000.
 
 The dashboard polls `GET /api/dashboard` every 60s (SWR) and also has a manual
@@ -36,6 +48,46 @@ on each request — nothing is cached, so what you see is live.
 | Shiyu Defense | `zzz/hadal_info_v2` | `brief.{score,rating,max_score}` |
 | Deadly Assault | `zzz/hadal_mem_detail_v2` | `total_star` (/9), `total_score` |
 | Player name / level / server (all three headers) | `game_record/card/wapi/getGameRecordCard` | one call returns every linked game's card |
+
+## Wuthering Waves
+
+Added after the original spec, by request — same "find a real data source,
+verify it live, then build the cards" approach as everything else here, but
+this one has a different shape worth understanding before you touch it.
+
+**Data source.** Kuro Games' KuroBBS platform has a rich widget endpoint
+(Waveplates, Tower of Adversity, weekly modes, battle pass, all in one call)
+— but it's only reachable via a KuroBBS *website* login, which is
+Chinese-phone-number-only. Since this account doesn't have one, the
+dashboard instead uses Kuro's **game-client login** (email/password) walked
+through a short chain — game login → game token → OAuth code → player info
+→ player role — implemented in `src/lib/kurobbs/`. This gets the daily
+resources (Waveplates, reserve energy, daily activity, weekly challenges
+left) but **not** Tower of Adversity or other endgame-mode clears — those
+are still locked behind the phone-gated endpoint.
+
+**Account safety — read this before changing `wuwa.ts`.** The first version
+of this logged in from scratch (full password + a brand-new random device
+ID) on every single dashboard refresh — roughly 1,440 times a day. That's
+the same shape of traffic as credential-stuffing as far as an anti-fraud
+system is concerned. The current version:
+
+- Caches the login session and only re-authenticates when it actually
+  expires (Kuro's server reports its own token lifetime; observed to be
+  ~3 days) — every refresh in between reuses the cached session for one
+  cheap read (`getPlayerRole`), the same way the HoYoLAB side reuses its
+  long-lived cookie instead of re-logging in.
+- Uses one **fixed** `WUWA_DEVICE_ID` (see Setup) instead of a fresh random
+  one per request, so the rare real logins all look like the same device
+  reconnecting.
+- Logs every real login to stdout (`pm2 logs hoyo-dashboard | grep kurobbs`)
+  with a running count, specifically so this claim is checkable, not just
+  asserted — you should only see one every few days.
+
+If you ever touch the login/session logic in `src/lib/kurobbs/wuwa.ts`,
+keep both of those properties. "It fetches the right data" is not enough by
+itself — a working version that logs in every poll cycle is a regression
+even if the numbers on screen are correct.
 
 ## Notes / deliberate deviations from the literal spec
 
@@ -66,6 +118,9 @@ on each request — nothing is cached, so what you see is live.
 
 - `src/lib/hoyolab/` — DS-header signing, the fetch client, and one typed
   fetcher module per game (+ `card.ts` for the cross-game profile card).
+- `src/lib/kurobbs/` — Wuthering Waves' request signing (`crypto.ts`) and the
+  cached login chain + data fetcher (`wuwa.ts`); see "Wuthering Waves" above
+  before changing the session-caching logic.
 - `src/lib/dashboard.ts` — fetches everything, applies the color/status rules
   from `requirement.md`, and normalizes it into the `Metric` shape in
   `src/lib/metrics.ts`.
