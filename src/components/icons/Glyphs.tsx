@@ -137,6 +137,33 @@ export function Glyph({ name, className }: { name: GlyphName; className?: string
           <path d="m8.5 14.5 2 2 4-4.5" />
         </svg>
       );
+    case "sanity":
+      return (
+        <svg {...common}>
+          <path d="M12 3v3.5" />
+          <path d="m18.5 6.5-2.5 2.5" />
+          <path d="m5.5 6.5 2.5 2.5" />
+          <circle cx="12" cy="14" r="7" />
+          <path d="M12 10.5v3.8l3 2" />
+        </svg>
+      );
+    case "daily-mission":
+      return (
+        <svg {...common}>
+          <path d="M6 3h9l4 4v14H6Z" />
+          <path d="M15 3v4h4" />
+          <path d="m8.5 13 2 2 4.5-4.5" />
+        </svg>
+      );
+    case "weekly-mission":
+      return (
+        <svg {...common}>
+          <path d="M6 3h9l4 4v14H6Z" />
+          <path d="M15 3v4h4" />
+          <path d="M8.5 12h6" />
+          <path d="M8.5 15.5h6" />
+        </svg>
+      );
     default:
       return null;
   }

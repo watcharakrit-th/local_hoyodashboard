@@ -35,7 +35,7 @@ function useAgo(iso?: string) {
 
 export function Dashboard() {
   const { data, error, isLoading, mutate, isValidating } = useSWR<DashboardResponse>("/api/dashboard", fetcher, {
-    refreshInterval: 60_000,
+    refreshInterval: 20 * 60_000, // 20 minutes
     revalidateOnFocus: true,
   });
 
@@ -46,7 +46,7 @@ export function Dashboard() {
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-[var(--text-primary)]">HoYo Dashboard</h1>
-          <p className="text-sm text-[var(--text-muted)]">Live Genshin Impact, Star Rail & ZZZ resource tracker</p>
+          <p className="text-sm text-[var(--text-muted)]">Live Genshin, Star Rail, ZZZ, Wuthering Waves & Endfield resource tracker</p>
         </div>
         <div className="flex items-center gap-3">
           {data && <span className="text-xs text-[var(--text-muted)]">Updated {ago}</span>}

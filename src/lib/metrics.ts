@@ -21,7 +21,10 @@ export type GlyphName =
   | "waveplate"
   | "reserve-energy"
   | "activity"
-  | "weekly-challenge";
+  | "weekly-challenge"
+  | "sanity"
+  | "daily-mission"
+  | "weekly-mission";
 
 export type MetricIcon =
   | { kind: "image"; src: string; alt: string }
@@ -114,7 +117,7 @@ export interface GameProfile {
 }
 
 export interface DashboardSection {
-  game: "genshin" | "hsr" | "zzz" | "wuwa";
+  game: "genshin" | "hsr" | "zzz" | "wuwa" | "endfield";
   title: string;
   accent: string;
   profile: GameProfile | null;

@@ -248,6 +248,12 @@ const MIN_SESSION_TTL_MS = 30 * 60 * 1000; // never trust a server-reported expi
 let cachedSession: WuwaSession | null = null;
 let processDeviceId: string | null = null;
 let loginCount = 0; // how many real logins this process has done — check `pm2 logs` against this
+// Guards against two nearly-simultaneous dashboard polls (two open tabs, a manual Refresh
+// landing next to the scheduled one) both seeing a cold/expired session and each kicking off
+// their own full password login — without this, a single race window could fire twice as many
+// real logins as intended, right when it matters most. Concurrent callers await the same
+// in-flight login instead of starting a second one.
+let loginPromise: Promise<WuwaSession> | null = null;
 
 /**
  * A stable device ID for this account. `WUWA_DEVICE_ID` (recommended —
@@ -301,8 +307,12 @@ async function login(deviceId: string): Promise<WuwaSession> {
 
 async function getSession(): Promise<WuwaSession> {
   if (cachedSession && Date.now() < cachedSession.expiresAt) return cachedSession;
-  cachedSession = await login(getDeviceId());
-  return cachedSession;
+  if (!loginPromise) {
+    loginPromise = login(getDeviceId())
+      .then((session) => (cachedSession = session))
+      .finally(() => (loginPromise = null));
+  }
+  return loginPromise;
 }
 
 /** Fetches the account's default bound Wuthering Waves character's daily-resource data. */

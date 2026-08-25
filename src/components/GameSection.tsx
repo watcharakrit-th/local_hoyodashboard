@@ -6,6 +6,7 @@ const ACCENT_VAR: Record<DashboardSection["accent"], string> = {
   hsr: "var(--accent-hsr)",
   zzz: "var(--accent-zzz)",
   wuwa: "var(--accent-wuwa)",
+  endfield: "var(--accent-endfield)",
 };
 
 export function GameSection({ section }: { section: DashboardSection }) {

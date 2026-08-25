@@ -47,3 +47,5 @@ kurobbs/*_response.json
 next-env.d.ts
 
 HoYoLAB_API.postman_collection.json
+
+log.txt

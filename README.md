@@ -1,12 +1,13 @@
 # HoYo Dashboard
 
 A live resource-tracking dashboard for Genshin Impact, Honkai: Star Rail,
-Zenless Zone Zero, and Wuthering Waves. The HoYoverse games run on the
-(undocumented) HoYoLAB Battle Chronicle API; Wuthering Waves runs on Kuro
-Games' equally undocumented game-account API. Server-side Next.js route
+Zenless Zone Zero, Wuthering Waves, and Arknights: Endfield. The HoYoverse
+games run on the (undocumented) HoYoLAB Battle Chronicle API; Wuthering
+Waves runs on Kuro Games' equally undocumented game-account API; Endfield
+runs on Gryphline's SKPORT community-site API. Server-side Next.js route
 handlers sign and fire the requests, then normalize the results into the
-cards defined in [`requirement.md`](./requirement.md) (Wuthering Waves came
-later, by request — see "Wuthering Waves" below for its own notes).
+cards defined in [`requirement.md`](./requirement.md) (Wuthering Waves and
+Arknights: Endfield came later, by request — see their own sections below).
 
 ## Setup
 
@@ -26,6 +27,11 @@ later, by request — see "Wuthering Waves" below for its own notes).
      hardware ID; keeping it fixed is what makes repeated logins look like
      the same device reconnecting instead of a new one each time — see
      "Wuthering Waves" below for why that matters.
+   - `SKPORT_CRED` — your Gryphline account's SKPORT session credential.
+     Log into skport.com in a browser, open devtools → Application →
+     Cookies, and copy the `SK_OAUTH_CRED_KEY` value. Long-lived like
+     `HOYOLAB_LTOKEN` — treat it like a password. See "Arknights: Endfield"
+     below for why this is a cookie and not an email/password pair.
 3. `npm run dev` and open http://localhost:3000.
 
 The dashboard polls `GET /api/dashboard` every 60s (SWR) and also has a manual
@@ -89,6 +95,57 @@ keep both of those properties. "It fetches the right data" is not enough by
 itself — a working version that logs in every poll cycle is a regression
 even if the numbers on screen are correct.
 
+## Arknights: Endfield
+
+Added the same way Wuthering Waves was — same "find a real data source,
+verify it live, then build the cards" approach — via **SKPORT**
+(skport.com), Gryphline's HoYoLAB-equivalent community site.
+
+**Data source.** `zonai.skport.com` exposes a signed JSON API with real
+daily-resource data: Sanity (`dungeon.curStamina`/`maxStamina`, Endfield's
+resin/trailblaze-power/waveplates equivalent) and daily/weekly mission
+progress. (The same response also carries a daily check-in status — that
+card was built and then deliberately dropped; not worth a fourth card for
+this dashboard's purposes.) Confirmed against
+two independent sources before writing any code: a bilingual community docs
+repo (`AixLnyt/skport-api-docs`) and the actual working TypeScript source of
+a production Discord bot (`yeci226/endfield-discord-bot`) — cross-checking
+docs against real, running code is what caught the captcha issue below,
+which the docs alone didn't mention.
+
+**Auth — a cookie value, not a login at all.** Unlike Wuthering Waves,
+`src/lib/skport/endfield.ts` doesn't automate any login step. Gryphline's
+password endpoint is Geetest captcha-gated (the reference bot's own login
+function takes an optional captcha payload and inspects an `x-rpc-aigis`
+response header) — a server can't solve an interactive captcha, and forcing
+it would risk the same credential-stuffing-shaped traffic the Wuthering
+Waves integration was fixed to avoid (see "Wuthering Waves" above). The
+reference bot's own answer to this is an OAuth-code exchange starting from
+a separate `ACCOUNT_TOKEN` cookie — but live testing against a real account
+found that's unnecessary here: the thing that exchange produces, `cred`, is
+already sitting in the browser's own `SK_OAUTH_CRED_KEY` cookie once you're
+logged into skport.com. So `SKPORT_CRED` (see Setup) is that cookie's value,
+copied once, and this file's only network call before the actual data
+fetch is refreshing `salt` — there's no step anywhere in this file that
+resembles a login.
+
+**Trade-off.** Because `cred` is never *derived*, only reused, there's no
+fallback if the browser-issued value ever expires or gets rotated —
+`getEndfieldData()` will throw a clear error asking for a fresh cookie
+value rather than silently failing. If this turns out to expire often in
+practice, that's worth knowing before "just automate the OAuth chain too"
+starts looking tempting — re-read the captcha paragraph above first.
+
+**Account safety.** Because there's no automated login step here, the main
+risk the Wuthering Waves section had to be fixed for doesn't really apply —
+there's nothing that looks like repeated credential submission. The
+remaining discipline is the same caching principle: don't re-derive `salt`
+more than necessary. If you touch `endfield.ts`, keep the session cached
+across polls, and keep telling `code: 10000` (a genuinely stale session)
+apart from any other error before deciding to refresh — the Wuthering
+Waves file's `catch` block originally treated *any* failure as "session
+expired," which this file was written to avoid from the start.
+
 ## Notes / deliberate deviations from the literal spec
 
 - **Jar of riches progress bar** is `current / max_home_coin` (the real cap
@@ -121,6 +178,9 @@ even if the numbers on screen are correct.
 - `src/lib/kurobbs/` — Wuthering Waves' request signing (`crypto.ts`) and the
   cached login chain + data fetcher (`wuwa.ts`); see "Wuthering Waves" above
   before changing the session-caching logic.
+- `src/lib/skport/` — Arknights: Endfield's request signing (`crypto.ts`) and
+  the cookie-based cred/salt chain + data fetcher (`endfield.ts`); see
+  "Arknights: Endfield" above before changing the auth logic.
 - `src/lib/dashboard.ts` — fetches everything, applies the color/status rules
   from `requirement.md`, and normalizes it into the `Metric` shape in
   `src/lib/metrics.ts`.

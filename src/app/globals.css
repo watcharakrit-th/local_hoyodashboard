@@ -23,6 +23,7 @@
   --accent-hsr: #4a3aa7;
   --accent-zzz: #d1590f;
   --accent-wuwa: #e34948;
+  --accent-endfield: #2f9463;
 
   --meter-track: #e1e0d9;
 }
@@ -58,6 +59,7 @@
     --accent-hsr: #9085e9;
     --accent-zzz: #e37a3a;
     --accent-wuwa: #e66767;
+    --accent-endfield: #4fbf8b;
 
     --meter-track: #2c2c2a;
   }

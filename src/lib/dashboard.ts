@@ -15,6 +15,7 @@ import {
 import { getDeadlyAssault, getShiyuDefense, getZzzNote } from "./hoyolab/zzz";
 import { getGameRecordCard, type RawGameRecordCardEntry } from "./hoyolab/card";
 import { getWuwaRoleData } from "./kurobbs/wuwa";
+import { getEndfieldData } from "./skport/endfield";
 import { secondsUntil } from "./format";
 import type {
   DashboardResponse,
@@ -615,6 +616,66 @@ function secondsUntilMs(unixMs: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// Arknights: Endfield
+// ---------------------------------------------------------------------------
+
+async function buildEndfieldSection(): Promise<DashboardSection> {
+  const metrics: Metric[] = [];
+  let profile: GameProfile | null = null;
+
+  try {
+    const data = await getEndfieldData();
+    profile = data.profile;
+
+    metrics.push({
+      id: "sanity",
+      label: "Sanity",
+      variant: "progress",
+      current: data.sanity.current,
+      max: data.sanity.max,
+      status: data.sanity.current < data.sanity.max ? "good" : "warning",
+      icon: { kind: "glyph", name: "sanity" },
+      ...(data.sanity.current < data.sanity.max
+        ? { countdownSeconds: secondsUntilMs(data.sanity.fullAtMs), countdownLabel: "until full" }
+        : {}),
+    });
+
+    metrics.push({
+      id: "daily-mission",
+      label: "Daily mission",
+      variant: "fraction",
+      current: data.dailyMission.current,
+      max: data.dailyMission.max,
+      status: statusFromEquality(data.dailyMission.current, data.dailyMission.max),
+      icon: { kind: "glyph", name: "daily-mission" },
+    });
+
+    if (data.weeklyMission) {
+      metrics.push({
+        id: "weekly-mission",
+        label: "Weekly mission",
+        variant: "fraction",
+        current: data.weeklyMission.current,
+        max: data.weeklyMission.max,
+        status: statusFromEquality(data.weeklyMission.current, data.weeklyMission.max),
+        icon: { kind: "glyph", name: "weekly-mission" },
+      });
+    } else {
+      metrics.push({ id: "weekly-mission", label: "Weekly mission", variant: "error", message: "Not unlocked yet." });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    metrics.push(
+      { id: "sanity", label: "Sanity", variant: "error", message },
+      { id: "daily-mission", label: "Daily mission", variant: "error", message },
+      { id: "weekly-mission", label: "Weekly mission", variant: "error", message },
+    );
+  }
+
+  return { game: "endfield", title: "Arknights: Endfield", accent: "endfield", profile, metrics };
+}
+
+// ---------------------------------------------------------------------------
 
 export async function buildDashboard(): Promise<DashboardResponse> {
   let entries: RawGameRecordCardEntry[] = [];
@@ -625,11 +686,12 @@ export async function buildDashboard(): Promise<DashboardResponse> {
     // than failing the whole dashboard over a single non-critical call.
   }
 
-  const [genshin, hsr, zzz, wuwa] = await Promise.all([
+  const [genshin, hsr, zzz, wuwa, endfield] = await Promise.all([
     buildGenshinSection(profileFor(process.env.GENSHIN_UID, entries)),
     buildHsrSection(profileFor(process.env.HSR_UID, entries)),
     buildZzzSection(profileFor(process.env.ZZZ_UID, entries)),
     buildWuwaSection(),
+    buildEndfieldSection(),
   ]);
-  return { generatedAt: new Date().toISOString(), sections: [genshin, hsr, zzz, wuwa] };
+  return { generatedAt: new Date().toISOString(), sections: [genshin, hsr, zzz, wuwa, endfield] };
 }
